@@ -150,10 +150,8 @@ public class DXQL extends QueryExecutor {
 
         return getTransactionTemplate().execute(
                 status -> {
-                    String sql = "SET schema '" + configuration.getSchema() + "';";
-                    execute(sql);
-                    sql = "SET lc_time = '" + configuration.getUsedLocale() + "';";
-                    execute(sql);
+                    configureTransactionSession(configuration.getSchema(), configuration.getUsedLocale());
+                    String sql;
                     for (TemporaryTableDefinition ttd : configuration.getTemporaryTableDefinitions()) {
                         sql = "CREATE TEMPORARY TABLE " + ttd.getName() + " ON COMMIT DROP AS " + ttd.getSql();
                         execute(sql);
@@ -223,21 +221,16 @@ public class DXQL extends QueryExecutor {
 
         return transactionTemplate.execute(
                 status -> {
+                    String schema = configuration.getSchema();
+                    if (schema.startsWith("${") && schema.endsWith("}")) {
+                        schema = Objects.toString(globalParameters.get(schema.substring(2, schema.length() - 1)), "");
+                    }
+                    String locale = configuration.getUsedLocale();
+                    if (locale.startsWith("${") && locale.endsWith("}")) {
+                        locale = Objects.toString(globalParameters.get(locale.substring(2, locale.length() - 1)), "");
+                    }
+                    configureTransactionSession(schema, locale);
                     String sql;
-                    if (configuration.getSchema().startsWith("${") && configuration.getSchema().endsWith("}")) {
-                        sql = "SET schema '" + globalParameters.get(configuration.getSchema().substring(2, configuration.getSchema().length() - 1)) + "';";
-                        execute(sql);
-                    } else {
-                        sql = "SET schema '" + configuration.getSchema() + "';";
-                        execute(sql);
-                    }
-                    if (configuration.getUsedLocale().startsWith("${") && configuration.getUsedLocale().endsWith("}")) {
-                        sql = "SET lc_time = '" + globalParameters.get(configuration.getUsedLocale().substring(2, configuration.getUsedLocale().length() - 1)) + "';";
-                        execute(sql);
-                    } else {
-                        sql = "SET lc_time = '" + configuration.getUsedLocale() + "';";
-                        execute(sql);
-                    }
                     for (TemporaryTableDefinition ttd : configuration.getTemporaryTableDefinitions()) {
                         Map<String, Object> temporaryTableParams = ttdParams.get(ttd);
                         sql = "CREATE TEMPORARY TABLE " + ttd.getName() + " ON COMMIT DROP AS " + ttd.getSql();
