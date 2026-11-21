@@ -46,6 +46,29 @@ public class SqlExecutor {
         return configuration.detachedCopy();
     }
 
+    /**
+     * Apply PostgreSQL session options only for the current transaction.
+     *
+     * Schema and locale are passed as values, never concatenated into SQL.
+     * quote_ident makes search_path a single identifier, not a list of schemas.
+     * Call this from inside TransactionTemplate.execute().
+     */
+    protected void configureTransactionSession(String schema, String locale) {
+        Objects.requireNonNull(schema, "schema");
+        Objects.requireNonNull(locale, "locale");
+        if (schema.isBlank() || locale.isBlank()) {
+            throw new IllegalArgumentException("Schema and locale must not be blank");
+        }
+        namedTemplate.queryForObject(
+                "SELECT pg_catalog.set_config('search_path', pg_catalog.quote_ident(:schema), true)",
+                Map.of("schema", schema),
+                String.class);
+        namedTemplate.queryForObject(
+                "SELECT pg_catalog.set_config('lc_time', :locale, true)",
+                Map.of("locale", locale),
+                String.class);
+    }
+
     protected void execute(String sql) {
         namedTemplate.execute(sql, PreparedStatement::execute);
     }
