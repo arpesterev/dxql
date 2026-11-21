@@ -1,33 +1,29 @@
 # Concurrency boundaries
 
-**Status:** The checked-in design has several features compatible with concurrent *read-only* use, but the project does **not** currently provide a verified thread-safety guarantee for arbitrary shared instances.
+DXQL can use a shared executor **only when its external dependencies are safe for concurrent use**. The executor now copies its XML configuration at construction and returns detached copies from `getConfiguration()`. This prevents accidental configuration changes by callers through the original object or getter from affecting active executions.
 
-## What is per invocation
+## Configuration ownership
 
-- [`DXQL.executeWholeDocument()`](../src/main/java/ru/council/dxql/DXQL.java) creates request-specific parameter maps, query-result maps and an output `MetaJson` tree.
-- [`QueryExecutor.executeQuery()`](../src/main/java/ru/council/dxql/executors/QueryExecutor.java) constructs a fresh `MetaJsonRowMapper` for each query.
-- [`SqlExecutor`](../src/main/java/ru/council/dxql/executors/SqlExecutor.java) uses a `TransactionTemplate` configured during construction. Spring documents sharing a `TransactionTemplate` with unchanged settings as thread-safe.
-- The Jackson `ObjectMapper` instances are created/configured during construction. Jackson documents reuse as thread-safe after all configuration is finished.
+[`DXQLConfiguration.detachedCopy()`](../src/main/java/ru/council/dxql/DXQLConfiguration.java) marshals and unmarshals a configuration, including nested JAXB-bound definitions. [`SqlExecutor`](../src/main/java/ru/council/dxql/executors/SqlExecutor.java) uses a detached copy during construction, and its getter returns another copy.
 
-These choices reduce shared per-request mutation. They do **not** prove thread safety for every configuration, extension or database integration.
+These changes isolate the executor from normal caller-side mutations, but protected members and subclass extensions can still violate that boundary. They do not make arbitrary configuration objects immutable.
 
-## Shared mutable parts and limitations
+## What is already request-scoped
 
-- [`DXQLConfiguration`](../src/main/java/ru/council/dxql/DXQLConfiguration.java) and [`QueryDefinition`](../src/main/java/ru/council/dxql/models/QueryDefinition.java) expose setters and mutable collections. Execution reads and iterates those definitions **without snapshotting them**. Do not change configuration (including nested lists and merger definitions) while requests run.
-- The returned `MetaJson` graphs use mutable collections and are **not safe for concurrent writes**. See [metan's concurrency notes](https://github.com/arpesterev/metan/blob/master/docs/CONCURRENCY.md).
-- The JDBC data source, transaction manager and all caller-supplied parameter values must satisfy their own concurrent-use contracts.
-- `@Transactional` annotations and database transactions **do not automatically serialize application threads** or protect Java object graphs.
+- [`DXQL.executeWholeDocument()`](../src/main/java/ru/council/dxql/DXQL.java) builds local parameter maps, query result maps and a new result graph.
+- [`QueryExecutor.executeQuery()`](../src/main/java/ru/council/dxql/executors/QueryExecutor.java) allocates a fresh `MetaJsonRowMapper` for each query.
+- `TransactionTemplate` and Jackson `ObjectMapper` can be reused concurrently after their settings have been finalized, but callers must not reconfigure them during execution.
 
-## Practical usage
+## Integration requirements
 
-1. Construct and validate the full configuration before serving requests, then treat it and every nested object as immutable.
-2. Do not call mutators on a shared `ObjectMapper` or `TransactionTemplate` once requests have started.
-3. Keep input maps and return values request-scoped; never update a `MetaJson` shared with another thread without external coordination.
-4. Avoid passing a single mutable caller-supplied map or collection to concurrent calls while it may be modified.
-5. If shared-instance concurrency is a requirement, write an integration test with a real connection pool and concurrent calls using **different parameter sets**, and verify both transaction-local temporary tables and independent results.
+1. Do not mutate the executor's internal protected state from subclasses after initialization.
+2. Use a correctly configured JDBC connection pool and transaction manager.
+3. Keep parameter maps request-scoped, and do not change the objects held in them during execution.
+4. Treat returned `MetaJson` results as caller-owned. For deliberate concurrent mutation, use [metan's synchronized snapshot API](https://github.com/arpesterev/metan/blob/master/docs/CONCURRENCY.md).
+5. Transactions do not automatically serialize Java threads. Use database locking or versioned updates for cross-request logical conflicts.
 
-**Conclusion:** `DXQL` is a candidate for concurrent calls with frozen configuration and correctly configured dependencies; do not advertise it as unconditionally thread-safe without a test-backed contract.
+## Verification
 
-References: [Spring TransactionTemplate](https://docs.spring.io/spring-framework/reference/data-access/transaction/programmatic.html), [Jackson ObjectMapper 2.13](https://fasterxml.github.io/jackson-databind/javadoc/2.13/com/fasterxml/jackson/databind/ObjectMapper.html).
+[`DXQLConfigurationIsolationTest`](../src/test/java/ru/council/dxql/DXQLConfigurationIsolationTest.java) checks isolation of nested definitions and concurrent access to getter snapshots. It does not cover concurrent SQL execution. A full integration guarantee still requires parallel queries with independent input sets, a real connection pool, PostgreSQL session settings and temporary tables.
 
-This note is a code-level review; no parallel integration tests were run.
+This is a narrower guarantee than claiming every DXQL instance is thread-safe in every integration.
