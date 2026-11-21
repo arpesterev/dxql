@@ -21,7 +21,6 @@ import java.util.Objects;
 
 public class SqlExecutor {
 
-    @Getter
     protected final DXQLConfiguration configuration;
     protected final DataSourceTransactionManager dataSourceTransactionManager;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -32,11 +31,19 @@ public class SqlExecutor {
     public SqlExecutor(JdbcTemplate template, DXQLConfiguration configuration) {
         Objects.requireNonNull(template.getDataSource());
         this.namedTemplate = new NamedParameterJdbcTemplate(template);
-        this.configuration = configuration;
+        this.configuration = Objects.requireNonNull(configuration, "configuration").detachedCopy();
         dataSourceTransactionManager = new DataSourceTransactionManager();
         dataSourceTransactionManager.setDataSource(namedTemplate.getJdbcTemplate().getDataSource());
         transactionTemplate = new TransactionTemplate(dataSourceTransactionManager);
         transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
+
+    /**
+     * Return a detached snapshot so callers cannot change the configuration
+     * used by concurrent executions through this getter.
+     */
+    public DXQLConfiguration getConfiguration() {
+        return configuration.detachedCopy();
     }
 
     protected void execute(String sql) {
