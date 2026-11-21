@@ -1,0 +1,34 @@
+name: Concurrency regression tests
+
+on:
+  push:
+    branches:
+      - 'fix/detached-config-*'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: dxql
+      - uses: actions/checkout@v4
+        with:
+          repository: arpesterev/metan
+          ref: 00de963808d0d8ef910861bf054de269900181a6
+          path: metan
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Gradle tests with public metan composite build
+        working-directory: dxql
+        run: gradle -PuseLocalMetan=true test --no-daemon
