@@ -41,3 +41,7 @@ The generated API reference is checked into [`docs/dokka/`](docs/dokka/). The Gr
 - `src/main/java/ru/council/dxql/models/`: query, parameter and constraint models.
 
 **Build status:** these commands are based on the checked-in Gradle configuration; they have not been verified against the external Maven registry in this documentation update.
+
+## Concurrency
+
+Shared-instance execution has not been established as unconditionally thread-safe. Configuration and nested query definitions must remain unchanged during execution; returned `MetaJson` results must not be modified concurrently. See [concurrency boundaries](docs/CONCURRENCY.md) for a source-based assessment.
