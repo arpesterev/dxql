@@ -81,6 +81,23 @@ public class DXQLConfiguration implements ValidatedModel {
     @XmlElement(name = "query")
     private List<QueryDefinition> queryDefinitions = new ArrayList<>();
 
+    /**
+     * Creates a detached configuration tree. The result may be mutated without
+     * affecting the original, including nested JAXB-bound lists and definitions.
+     * Call before publishing the configuration to concurrent request handlers.
+     */
+    public DXQLConfiguration detachedCopy() {
+        try {
+            JAXBContext context = JAXBContext.newInstance(DXQLConfiguration.class);
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            context.createMarshaller().marshal(this, output);
+            return (DXQLConfiguration) context.createUnmarshaller()
+                    .unmarshal(new ByteArrayInputStream(output.toByteArray()));
+        } catch (JAXBException exception) {
+            throw new IllegalStateException("Unable to copy DXQL configuration", exception);
+        }
+    }
+
     public static DXQLConfiguration from(@NonNull InputStream is) throws JAXBException, IOException, SAXException {
         Unmarshaller jaxbUnmarshaller;
         JAXBContext jaxbContext = JAXBContext.newInstance(DXQLConfiguration.class);
