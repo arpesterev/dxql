@@ -20,6 +20,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: arpesterev/metan
+          ref: 00de963808d0d8ef910861bf054de269900181a6
           path: metan
       - uses: actions/setup-java@v4
         with:
