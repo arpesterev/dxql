@@ -3,7 +3,7 @@ name: Concurrency regression tests
 on:
   push:
     branches:
-      - 'fix/detached-config-*'
+      - master
   pull_request:
   workflow_dispatch:
 
@@ -13,6 +13,24 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: dxql_test
+          POSTGRES_USER: dxql_test
+          POSTGRES_PASSWORD: local_test_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dxql_test -d dxql_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DXQL_TEST_PG_URL: jdbc:postgresql://localhost:5432/dxql_test
+      DXQL_TEST_PG_USER: dxql_test
+      DXQL_TEST_PG_PASSWORD: local_test_only
     steps:
       - uses: actions/checkout@v4
         with:
