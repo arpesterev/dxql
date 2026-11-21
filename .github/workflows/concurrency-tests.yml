@@ -30,4 +30,4 @@ jobs:
           gradle-version: '8.7'
       - name: Gradle tests with public metan composite build
         working-directory: dxql
-        run: gradle --include-build ../metan test --no-daemon
+        run: gradle -PuseLocalMetan=true test --no-daemon
