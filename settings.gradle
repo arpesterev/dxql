@@ -1,1 +1,11 @@
 rootProject.name = 'DXQL'
+
+// Opt-in composite build for CI and local development without the private
+// Maven registry. This does not affect a normal standalone checkout.
+if (gradle.startParameter.projectProperties['useLocalMetan'] == 'true') {
+    includeBuild('../metan') {
+        dependencySubstitution {
+            substitute module('ru.council.libs:metan') using project(':')
+        }
+    }
+}
